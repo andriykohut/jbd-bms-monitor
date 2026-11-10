@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uv run --with bleak test_battery.py
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Obtainium compares the release tag with the installed versionName, so they must match.
+      - name: Check tag matches versionName
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' android/app/build.gradle.kts)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME doesn't match versionName $version"; exit 1; }
+      - name: Write signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > battery-release.keystore
+          printf 'storeFile=battery-release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+
+      - name: Test and build
+        working-directory: android
+        run: ./gradlew test assembleRelease
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "Battery-${GITHUB_REF_NAME#v}.apk"
+          gh release create "$GITHUB_REF_NAME" "Battery-${GITHUB_REF_NAME#v}.apk" --generate-notes

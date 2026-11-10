@@ -1,0 +1,38 @@
+name: Add my battery
+description: Report a battery that works (or doesn't) so it can be listed as supported.
+title: "Battery: "
+labels: [battery]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Battery brand and model
+      placeholder: VoltPolska 12V 100Ah LiFePO4
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Name it shows over Bluetooth
+      placeholder: 12V150A…
+    validations:
+      required: true
+  - type: dropdown
+    id: works
+    attributes:
+      label: Does it work?
+      options: ["Yes, readings look right", "Partly (describe below)", "No"]
+    validations:
+      required: true
+  - type: textarea
+    id: replies
+    attributes:
+      label: Raw replies (optional)
+      description: >
+        Hex of the 0x03 and 0x04 replies, e.g. from nRF Connect. They become test
+        fixtures, so new versions keep working with your battery.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
